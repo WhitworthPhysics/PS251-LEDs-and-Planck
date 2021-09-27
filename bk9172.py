@@ -53,9 +53,9 @@ class BK9172:
         time.sleep(BK9172.cmd_wait)
 
     def set_slew_rate(self, slew_rate):
-        if (slew_rate is 'MAX'):
+        if (slew_rate == 'MAX'):
             self.instr.write('OUT:SR:VOLT 7.00')
-        elif (slew_rate is 'MIN'):
+        elif (slew_rate == 'MIN'):
             self.instr.write('OUT:SR:VOLT 0.01')
         else:
             self.instr.write('OUT:SR:VOLT %.3f' % slew_rate)
