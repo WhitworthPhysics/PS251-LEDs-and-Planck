@@ -4,9 +4,9 @@ class BenchMultimeter:
     def __init__(self, resource_manager, visa_addr):
         # Connect to instrument
         self.instr = resource_manager.open_resource(visa_addr)
-        # self.instr.read_termination = '\n'
-        # self.instr.write_termination = '\n'
-        # self.instr.baud_rate = 9600
+        self.instr.read_termination = '\n'
+        self.instr.write_termination = '\n'
+        self.instr.baud_rate = 9600
 
         # Verify that this is a supported multimeter
         if 'GPIB' in visa_addr: # this might be a Fluke 8842A
@@ -16,14 +16,11 @@ class BenchMultimeter:
                 print("Connection to Fluke 8842A successful")
             else:
                 self.instr.close()
-                raise Exception("Failed to connect to a BK multimeter")
+                raise Exception("Failed to connect to a multimeter")
         else:
             id_string = self.instr.query('*IDN?').split(",")
-            if 'B&K PRECISION' in id_string[0].upper():
-                if '2831' in id_string[1]:
-                    self.model = '2831'
-                else:
-                    raise Exception(f"Model {id_string[1]} is not supported")
+            if ('2831' in id_string[0]) and ('Multimeter' in id_string[0]):
+                self.model = '2831'
                 print(f"Connection to BK {self.model} successful")
             else:
                 self.instr.close()
@@ -39,27 +36,28 @@ class BenchMultimeter:
                                     'frequency': 'FREQ',
                                     'diode': 'DIOD',
                                     'continuity': 'CONT'}
+            self.get_mode_string = 'FUNC?'
             self.select_mode_string = 'FUNC %s'
             self.select_V_range_depends_on_vtype = True
-            self.supported_V_ranges = {'auto': 'AUTO ON',
-                                       'max': 'MAX',
-                                       '200 mV': 0.2,
-                                       '2 V': 2,
-                                       '20 V': 20,
-                                       '200 V': 200}
+            self.supported_V_ranges = {'auto': ':AUTO ON',
+                                       'max': ' MAX',
+                                       '200 mV': ' 0.2',
+                                       '2 V': ' 2',
+                                       '20 V': ' 20',
+                                       '200 V': ' 200'}
             self.select_V_range_float = 'VOLT:%s:RANGE %.3f'
-            self.select_V_range_string = 'VOLT:%s:RANGE:%s'
+            self.select_V_range_string = 'VOLT:%s:RANGE%s'
             self.select_I_range_depends_on_ctype = True
-            self.supported_I_ranges = {'auto': 'AUTO ON',
-                                       '2 mA': 0.002,
-                                       '20 mA': 0.02,
-                                       '200 mA': 0.2,
-                                       '2 A': 2,
-                                       '20 A': 20}
-            self.support_I_range_by_float = True
-            self.select_I_range_float = 'CURR:%s:RANGE %.3f'
-            self.select_I_range_string = 'CURR:%s:RANGE:%s'
-            self.measure_query = 'MEAS?'
+            self.supported_I_ranges = {'auto': ':AUTO ON',
+                                       '2 mA': ' 0.002',
+                                       '20 mA': ' 0.02',
+                                       '200 mA': ' 0.2',
+                                       '2 A': ' 2',
+                                       '20 A': ' 20'}
+            self.support_I_range_by_float = False
+            self.select_I_range_float = None
+            self.select_I_range_string = 'CURR:%s:RANGE%s'
+            self.measure_query = 'FETCH?'
             #### MORE SUPPORTED COMMANDS CAN BE IMPLEMENTED ####
         elif self.model == '8842A':
             self.supported_modes = {'V DC': 'F1',
@@ -68,6 +66,7 @@ class BenchMultimeter:
                         'I AC': 'F6',
                         '2 wire': 'F3',
                         '4 wire': 'F4'}
+            self.get_mode_string = 'G0'
             self.select_mode_string = '%s'
             self.select_V_range_depends_on_vtype = False
             self.supported_V_ranges = {'auto': 'R0',
@@ -110,7 +109,18 @@ class BenchMultimeter:
             print('Mode not recognized. Valid modes are:')
             print('    %s' % list(self.supported_modes.keys()))
 
+    def get_mode(self):
+        mode_q = self.instr.query(self.get_mode_string)
+        mode_q = mode_q.upper()
+        for k,v in self.supported_modes.items():
+            if v == mode_q:
+                self.mode = k
+                pass
+        return self.mode
+
     def set_volt_range(self, code):
+        if not hasattr(self,'mode'):
+            self.get_mode()
         if self.mode == 'V DC':
             vtype = 'DC'
         elif self.mode == 'V AC':
@@ -132,6 +142,8 @@ class BenchMultimeter:
             print('    %s' % list(self.supported_V_ranges.keys()))
 
     def set_current_range(self, code):
+        if not hasattr(self,'mode'):
+            self.get_mode()
         if self.mode == 'I DC':
             ctype = 'DC'
         elif self.mode == 'I AC':
